@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend import database
 from backend import models
@@ -14,6 +15,17 @@ def get_db():
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+
+)
+
+models.Base.metadata.create_all(bind=database.engine)
+
 @app.get("/")
 def get_root():
     return {"message": "Welcome to main page"}
@@ -26,8 +38,6 @@ def create_task(task: schema.Creater,db: Session = Depends(get_db)):
     db.refresh(db_task)
 
     return db_task
-
-print("This is corrct")
 
 @app.get("/tasks", response_model=list[schema.ResponseList])
 def get_all_tasks(db: Session=Depends(get_db)):

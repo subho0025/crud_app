@@ -27,9 +27,12 @@ class Responser(BaseModel):
     updated_date: datetime
 
     class Config:
-        orm_mode=True
+        from_attributes=True
     
 class ResponseList(BaseModel):
     id: int
     title: str
     status: str
+
+    class Config:
+        from_attributes=True
