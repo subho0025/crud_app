@@ -56,40 +56,51 @@ def update_task(task_id : int,task_update: schema.Updater, db: Session=Depends(g
     if task_update.description is not None:
         task.description = task_update.description
 
-    if task_update.title is not None:
+    if task_update.status is not None:
         task.status = task_update.status
 
     db.commit()
     db.refresh(task)
     return task
 
-# @app.delete("/tasks/{task_id}")
-# def tempDelete_task(task_id : int):
-#     for index, t in enumerate(tasks):
-#         if t.id == task_id and not t.deleted:
-#             t.deleted = True
-#             return {"message" : f"task {task_id} moved to recycle bin"}
-            
-#     raise HTTPException(status_code=404, detail= f"task with id {task_id} not found")
+@app.delete("/tasks/{task_id}")
+def tempDelete_task(task_id : int,db: Session=Depends(get_db)):
+    task=(db.query(models.Task).filter(models.Task.deleted.is_(False)).filter(models.Task.id==task_id).first())
+    
+    if not task:
+        raise HTTPException(status_code=404, detail= f"task with id {task_id} not found")
+    
+    task.deleted=True
+    db.commit()
 
-# @app.get("/recycle-bin", response_model=List[Task])
-# def get_deleted_tasks():
-#     return [t for t in tasks if t.deleted]
+    return {"message": f"task {task_id} deleted"}
+    
 
-# @app.put("/recycle-bin/{task_id}")
-# def restore_task(task_id : int):
-#     for t in tasks:
-#         if t.id == task_id and t.deleted:
-#             t.deleted = False
-#             return {"message" : f"task {task_id} restored successfully"}
-        
-#     raise HTTPException(status_code=404, detail = f"task with id {task_id} not found")
+@app.get("/recycle-bin", response_model=list[schema.ResponseList])
+def get_all_tasks(db: Session=Depends(get_db)):
+    task = (db.query(models.Task).filter(models.Task.deleted.is_(True)).all())
+    return task
 
-# @app.delete("/recycle-bin/{task_id}")
-# def permntDelete(task_id : int):
-#     for index, t in enumerate(tasks):
-#         if t.id == task_id and t.deleted:
-#             tasks.pop(index)
-#             return {"message": f"task {task_id} permanently deleted"}
-        
-#     raise HTTPException(status_code= 404, detail = f"task with id {task_id} not found")
+@app.put("/recycle-bin/{task_id}")
+def restore_task(task_id : int,db:Session=Depends(get_db)):
+    task=(db.query(models.Task).filter(models.Task.deleted.is_(True)).filter(models.Task.id==task_id).first())
+    
+    if not task:
+        raise HTTPException(status_code=404, detail= f"task with id {task_id} not found")
+    
+    task.deleted=False
+    db.commit()
+    db.refresh(task)
+
+    return {"message": f"task {task_id} restored"}
+
+@app.delete("/recycle-bin/{task_id}")
+def permntDelete(task_id : int,db:Session=Depends(get_db)):
+    task=(db.query(models.Task).filter(models.Task.deleted.is_(True)).filter(models.Task.id==task_id).first())
+    
+    if not task:
+        raise HTTPException(status_code= 404, detail = f"task with id {task_id} not found")
+    db.delete(task)
+    db.commit()
+
+    return{ "message": f"task with id {task_id}Deleted permanently "}

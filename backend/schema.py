@@ -1,11 +1,17 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from enum import Enum
+
+# class Status(str,Enum):
+#     pending="Pending"
+#     in_progress="In Progress"
+#     completed="Completed"
 
 class Creater(BaseModel):
     title:str
     description:Optional[str]=None
-    status:str="Pending"
+    status:str
 
 class Updater(BaseModel):
     title:Optional[str]=None
@@ -20,7 +26,7 @@ class Responser(BaseModel):
     created_date: datetime
     updated_date: datetime
 
-    class Cinfig:
+    class Config:
         orm_mode=True
     
 class ResponseList(BaseModel):
