@@ -2,12 +2,13 @@ import { useEffect, useState } from "react"
 import axios from "axios"
 import "./App.css"
 
+/*Mapping of database status values to the values that is being printed on the website*/
 const STATUS_MAP = {
   pending: "Pending",
   in_progress: "In Progress",
   completed: "Completed",
 }
-
+/*for Linking the backend with the frontend */
 const API_BASE = "http://127.0.0.1:8000"
 
 function App() {
@@ -26,12 +27,24 @@ function App() {
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("pending")
 
-
+/*This is for changing the date from UTC to IST */
   const formatDate = (value) => {
     if (!value) return "-"
-    return new Date(value).toLocaleString()
-  }
+    if (!value.includes("Z")) {
+        value = value.replace(" ", "T") + "Z";
+    }
 
+    return new Date(value).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      minute: "2-digit",
+      hour: "2-digit",
+      hour12: true
+    })
+  }
+/*This is for fetching all the records */
   const loadTasks = async () => {
     try {
       const { data } = await axios.get(`${API_BASE}/tasks`)
@@ -40,6 +53,7 @@ function App() {
       console.error("Failed to load tasks", err)
     }
   }
+/*This is for fetching all the records in the recycle bin which are soft deleted */
 
   const loadTrash = async () => {
     try {
@@ -49,7 +63,7 @@ function App() {
       console.error("Failed to load recycle bin", err)
     }
   }
-
+/*For fetching a particular record */
   const getTask = async (id) => {
     const { data } = await axios.get(`${API_BASE}/tasks/${id}`)
     return data
@@ -60,7 +74,7 @@ function App() {
     loadTrash()
   }, [])
 
-
+/*For creating a new record */
   const startCreate = () => {
     setEditingTaskId(null)
     setTitle("")
@@ -68,7 +82,7 @@ function App() {
     setStatus("pending")
     setIsFormOpen(true)
   }
-
+/*For editing a record */
   const startEdit = async (id) => {
     const task = await getTask(id)
 
@@ -78,14 +92,14 @@ function App() {
     setStatus(task.status)
     setIsFormOpen(true)
   }
-
+/*Saving the edited record */
   const saveTask = async () => {
     if (!title.trim()) {
       alert("Title cannot be empty")
       return
     }
 
-    const payload = { title, description, status }
+    const payload = { title, description, status } // A variable used as an alias for the record
 
     try {
       if (editingTaskId) {
@@ -101,19 +115,19 @@ function App() {
     }
   }
 
-
+  //Soft delete
   const moveToTrash = async (id) => {
     await axios.delete(`${API_BASE}/tasks/${id}`)
     loadTasks()
     loadTrash()
   }
-
+//Restoring a soft-deleted record
   const restoreTask = async (id) => {
     await axios.put(`${API_BASE}/recycle-bin/${id}`)
     loadTasks()
     loadTrash()
   }
-
+//Permanent delete
   const deleteForever = async (id) => {
     if (!window.confirm("Permanently delete this task?")) return
     await axios.delete(`${API_BASE}/recycle-bin/${id}`)

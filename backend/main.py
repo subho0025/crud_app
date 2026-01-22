@@ -26,10 +26,13 @@ app.add_middleware(
 
 models.Base.metadata.create_all(bind=database.engine)
 
+
+#root
 @app.get("/")
 def get_root():
     return {"message": "Welcome to main page"}
 
+#create task
 @app.post("/tasks", response_model=schema.Responser)
 def create_task(task: schema.Creater,db: Session = Depends(get_db)):
     db_task = models.Task(title=task.title,description=task.description,status=task.status)
@@ -39,11 +42,13 @@ def create_task(task: schema.Creater,db: Session = Depends(get_db)):
 
     return db_task
 
+#get all valid tasks
 @app.get("/tasks", response_model=list[schema.ResponseList])
 def get_all_tasks(db: Session=Depends(get_db)):
     task = (db.query(models.Task).filter(models.Task.deleted.is_(False)).all())
     return task
 
+#get single task
 @app.get("/tasks/{task_id}", response_model=schema.Responser)
 def get_task(task_id: int,db: Session=Depends(get_db)):
     task = (db.query(models.Task).filter(models.Task.deleted.is_(False)).filter(models.Task.id==task_id).first())
@@ -53,6 +58,7 @@ def get_task(task_id: int,db: Session=Depends(get_db)):
     
     return task
 
+#update task
 @app.patch("/tasks/{task_id}", response_model= schema.Responser)
 def update_task(task_id : int,task_update: schema.Updater, db: Session=Depends(get_db)):
     task = (db.query(models.Task).filter(models.Task.id==task_id).filter(models.Task.deleted.is_(False)).first())
@@ -73,6 +79,7 @@ def update_task(task_id : int,task_update: schema.Updater, db: Session=Depends(g
     db.refresh(task)
     return task
 
+#soft delete task
 @app.delete("/tasks/{task_id}")
 def tempDelete_task(task_id : int,db: Session=Depends(get_db)):
     task=(db.query(models.Task).filter(models.Task.deleted.is_(False)).filter(models.Task.id==task_id).first())
@@ -85,12 +92,13 @@ def tempDelete_task(task_id : int,db: Session=Depends(get_db)):
 
     return {"message": f"task {task_id} deleted"}
     
-
+#get soft deleted tasks
 @app.get("/recycle-bin", response_model=list[schema.ResponseList])
 def get_all_tasks(db: Session=Depends(get_db)):
     task = (db.query(models.Task).filter(models.Task.deleted.is_(True)).all())
     return task
 
+#restore soft deleted task
 @app.put("/recycle-bin/{task_id}")
 def restore_task(task_id : int,db:Session=Depends(get_db)):
     task=(db.query(models.Task).filter(models.Task.deleted.is_(True)).filter(models.Task.id==task_id).first())
@@ -104,6 +112,7 @@ def restore_task(task_id : int,db:Session=Depends(get_db)):
 
     return {"message": f"task {task_id} restored"}
 
+#hard delete
 @app.delete("/recycle-bin/{task_id}")
 def permntDelete(task_id : int,db:Session=Depends(get_db)):
     task=(db.query(models.Task).filter(models.Task.deleted.is_(True)).filter(models.Task.id==task_id).first())
