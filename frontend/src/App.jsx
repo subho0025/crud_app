@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import axios from "axios"
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import "./App.css"
 
 /*Mapping of database status values to the values that is being printed on the website*/
@@ -141,6 +142,48 @@ function App() {
 
   const list = isRecycleView ? trash : tasks
 
+  // Drag and drop handler
+  const onDragEnd = async (result) => {
+    const { source, destination, draggableId } = result
+
+    if (!destination) return
+
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    ) return
+
+    const newStatus = destination.droppableId
+    const taskId = parseInt(draggableId)
+
+    //Optimistic Update (Instant UI change)
+    const updatedTasks = tasks.map(t => 
+      t.id === taskId ? { ...t, status: newStatus } : t
+    )
+    setTasks(updatedTasks)
+
+    //API Update (Background)
+    try {
+      await axios.patch(`${API_BASE}/tasks/${taskId}`, { status: newStatus })
+    } catch (err) {
+      console.error("Failed to move task", err)
+      loadTasks() // Revert if API fails
+    }
+  }
+
+  // Helper to group tasks into columns
+  const getTasksByStatus = () => {
+    const grouped = { pending: [], in_progress: [], completed: [] }
+    tasks.forEach(t => {
+      if (grouped[t.status]) grouped[t.status].push(t)
+      else grouped['pending'].push(t)
+    })
+    return grouped
+  }
+  
+  const groupedTasks = getTasksByStatus()
+  const COLUMNS = ["pending", "in_progress", "completed"]
+
   return (
     <div className="container">
       <div className="header">
@@ -203,48 +246,115 @@ function App() {
           </div>
         </div>
       )}
+      {!isRecycleView ? (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="kanban-board">
+            {COLUMNS.map(colId => (
+              <div key={colId} className="kanban-column">
+                <div className="column-header">
+                  {STATUS_MAP[colId]}
+                  <span className="count-badge">{groupedTasks[colId]?.length || 0}</span>
+                </div>
+                
+                <Droppable droppableId={colId}>
+                  {(provided, snapshot) => (
+                    <div
+                      className="droppable-area"
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      style={{ background: snapshot.isDraggingOver ? '#e3f2fd' : 'transparent' }}
+                    >
+                      {groupedTasks[colId]?.map((task, index) => (
+                        <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            className={`task-card status-${task.status} ${snapshot.isDragging ? "is-dragging" : ""}`}
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            onClick={() => openDetails(task.id)}
+                            style={{
+                              ...provided.draggableProps.style,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div className="card-title">{task.title}</div>
+                            
+                            {task.description && (
+                              <div className="card-desc">
+                                {task.description}
+                              </div>
+                            )}
 
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Title</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((task, i) => (
-            <tr key={task.id}>
-              <td>{i + 1}</td>
-              <td>{task.title}</td>
-              <td>{STATUS_MAP[task.status]}</td>
-              <td>
-                {!isRecycleView ? (
-                  <>
-                    <button onClick={() => openDetails(task.id)}>View</button>
-                    <button onClick={() => startEdit(task.id)}>Edit</button>
-                    <button onClick={() => moveToTrash(task.id)}>Delete</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => restoreTask(task.id)}>Restore</button>
-                    <button onClick={() => deleteForever(task.id)}>Delete</button>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-
-          {list.length === 0 && (
+                            <div className="card-actions">
+                              <button 
+                                className="action-btn view-btn" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDetails(task.id);
+                                }}
+                              >
+                                View
+                              </button>
+                              <button 
+                                className="action-btn edit-btn" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEdit(task.id);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className="action-btn delete-btn" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  moveToTrash(task.id);
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            ))}
+          </div>
+        </DragDropContext>
+      ) : (
+        <table>
+          <thead>
             <tr>
-              <td colSpan="4" style={{ textAlign: "center", padding: 20 }}>
-                No records found
-              </td>
+              <th>#</th>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {list.map((task, i) => (
+              <tr key={task.id}>
+                <td>{i + 1}</td>
+                <td>{task.title}</td>
+                <td>{STATUS_MAP[task.status]}</td>
+                <td>
+                  <button onClick={() => restoreTask(task.id)}>Restore</button>
+                  <button onClick={() => deleteForever(task.id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+             {list.length === 0 && (
+                <tr><td colSpan="4" style={{textAlign:'center', padding: 20}}>Recycle Bin is empty</td></tr>
+             )}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

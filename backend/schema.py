@@ -33,6 +33,7 @@ class ResponseList(BaseModel):
     id: int
     title: str
     status: str
+    description: Optional[str] = None
 
     class Config:
         from_attributes=True

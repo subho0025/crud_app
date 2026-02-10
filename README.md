@@ -39,7 +39,7 @@ Since this is a full-stack application, you need to run this on two terminals on
 
  4. Start the server:
    ```bash
-   uvicorn main:app --reload
+   uvicorn backend.main:app --reload
    ```
   You should see: Uvicorn running on http://127.0.0.1:8000
 
