@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import axios from "axios"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
+import Auth from "./Auth"
 import "./App.css"
 
 /*Mapping of database status values to the values that is being printed on the website*/
@@ -27,6 +28,26 @@ function App() {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("pending")
+
+  const [token, setToken] = useState(localStorage.getItem("token"))
+
+  // This function adds the token to every request
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
+      loadTasks()
+      loadTrash()
+    } else {
+      delete axios.defaults.headers.common["Authorization"]
+      setTasks([]) // Clear data on logout
+      setTrash([])
+    }
+  }, [token])
+
+  const handleLogout = () => {
+    localStorage.removeItem("token")
+    setToken(null)
+  }
 
 /*This is for changing the date from UTC to IST */
   const formatDate = (value) => {
@@ -140,7 +161,15 @@ function App() {
     setTaskPreview(task)
   }
 
-  const list = isRecycleView ? trash : tasks
+  // Helper to group tasks into columns
+  const getTasksByStatus = () => {
+    const grouped = { pending: [], in_progress: [], completed: [] }
+    tasks.forEach(t => {
+      if (grouped[t.status]) grouped[t.status].push(t)
+      else grouped['pending'].push(t)
+    })
+    return grouped
+  }
 
   // Drag and drop handler
   const onDragEnd = async (result) => {
@@ -171,16 +200,11 @@ function App() {
     }
   }
 
-  // Helper to group tasks into columns
-  const getTasksByStatus = () => {
-    const grouped = { pending: [], in_progress: [], completed: [] }
-    tasks.forEach(t => {
-      if (grouped[t.status]) grouped[t.status].push(t)
-      else grouped['pending'].push(t)
-    })
-    return grouped
+  if (!token) {
+    return <Auth onLogin={() => setToken(localStorage.getItem("token"))} />
   }
-  
+
+  const list = isRecycleView ? trash : tasks
   const groupedTasks = getTasksByStatus()
   const COLUMNS = ["pending", "in_progress", "completed"]
 
@@ -188,8 +212,10 @@ function App() {
     <div className="container">
       <div className="header">
         <h1>{isRecycleView ? "Recycle Bin" : "Task Dashboard"}</h1>
+        
+        <div style={{display: 'flex', gap: '10px'}}>
+          <button onClick={handleLogout} style={{backgroundColor: '#ef4444', color: 'white'}}>Logout</button>
 
-        <div>
           {!isRecycleView && (
             <button onClick={startCreate}>+ Create</button>
           )}
@@ -201,34 +227,16 @@ function App() {
 
       {isFormOpen && !isRecycleView && (
         <div className="form-card">
-          <input
-            placeholder="Title"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-          />
-
+          <input placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
           <select value={status} onChange={e => setStatus(e.target.value)}>
             <option value="pending">Pending</option>
             <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
           </select>
-
-          <input
-            placeholder="Description"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-          />
-
+          <input placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} />
           <div style={{ marginTop: 10 }}>
-            <button onClick={saveTask}>
-              {editingTaskId ? "Update" : "Save"}
-            </button>
-            <button
-              onClick={() => setIsFormOpen(false)}
-              style={{ marginLeft: 10, background: "#888" }}
-            >
-              Cancel
-            </button>
+            <button onClick={saveTask}>{editingTaskId ? "Update" : "Save"}</button>
+            <button onClick={() => setIsFormOpen(false)} style={{ marginLeft: 10, background: "#888" }}>Cancel</button>
           </div>
         </div>
       )}
@@ -246,6 +254,7 @@ function App() {
           </div>
         </div>
       )}
+
       {!isRecycleView ? (
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="kanban-board">
@@ -266,58 +275,27 @@ function App() {
                     >
                       {groupedTasks[colId]?.map((task, index) => (
                         <Draggable key={task.id} draggableId={String(task.id)} index={index}>
-                        {(provided, snapshot) => (
-                          <div
-                            className={`task-card status-${task.status} ${snapshot.isDragging ? "is-dragging" : ""}`}
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            onClick={() => openDetails(task.id)}
-                            style={{
-                              ...provided.draggableProps.style,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <div className="card-title">{task.title}</div>
-                            
-                            {task.description && (
-                              <div className="card-desc">
-                                {task.description}
+                          {(provided, snapshot) => (
+                            <div
+                              className={`task-card status-${task.status} ${snapshot.isDragging ? "is-dragging" : ""}`}
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              onClick={() => openDetails(task.id)}
+                              style={{ ...provided.draggableProps.style, cursor: 'pointer' }}
+                            >
+                              <div className="card-title">{task.title}</div>
+                              {task.description && (
+                                <div className="card-desc">{task.description}</div>
+                              )}
+                              <div className="card-actions">
+                                <button className="action-btn view-btn" onClick={(e) => { e.stopPropagation(); openDetails(task.id); }}>View</button>
+                                <button className="action-btn edit-btn" onClick={(e) => { e.stopPropagation(); startEdit(task.id); }}>Edit</button>
+                                <button className="action-btn delete-btn" onClick={(e) => { e.stopPropagation(); moveToTrash(task.id); }}>Delete</button>
                               </div>
-                            )}
-
-                            <div className="card-actions">
-                              <button 
-                                className="action-btn view-btn" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openDetails(task.id);
-                                }}
-                              >
-                                View
-                              </button>
-                              <button 
-                                className="action-btn edit-btn" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startEdit(task.id);
-                                }}
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                className="action-btn delete-btn" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  moveToTrash(task.id);
-                                }}
-                              >
-                                Delete
-                              </button>
                             </div>
-                          </div>
-                        )}
-                      </Draggable>
+                          )}
+                        </Draggable>
                       ))}
                       {provided.placeholder}
                     </div>
@@ -331,10 +309,7 @@ function App() {
         <table>
           <thead>
             <tr>
-              <th>#</th>
-              <th>Title</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>#</th><th>Title</th><th>Status</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -349,9 +324,9 @@ function App() {
                 </td>
               </tr>
             ))}
-             {list.length === 0 && (
-                <tr><td colSpan="4" style={{textAlign:'center', padding: 20}}>Recycle Bin is empty</td></tr>
-             )}
+            {list.length === 0 && (
+              <tr><td colSpan="4" style={{textAlign:'center', padding: 20}}>Recycle Bin is empty</td></tr>
+            )}
           </tbody>
         </table>
       )}

@@ -1,17 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 
 from backend import database
 from backend import models
 from backend import schema
-
-def get_db():
-    db=database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from backend import auth
 
 app = FastAPI()
 
@@ -32,10 +27,32 @@ models.Base.metadata.create_all(bind=database.engine)
 def get_root():
     return {"message": "Welcome to main page"}
 
+@app.post("/register", response_model=schema.UserResponse)
+def register_user(user: schema.UserCreate, db: Session = Depends(database.get_db)):
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_pwd = auth.get_password_hash(user.password)
+    new_user = models.User(username=user.username, hashed_password=hashed_pwd)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.post("/login", response_model=schema.Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    
+    access_token = auth.create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 #create task
 @app.post("/tasks", response_model=schema.Responser)
-def create_task(task: schema.Creater,db: Session = Depends(get_db)):
-    db_task = models.Task(title=task.title,description=task.description,status=task.status)
+def create_task(task: schema.Creater,db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    db_task = models.Task(**task.dict(), owner_id=current_user.id)
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
@@ -44,14 +61,14 @@ def create_task(task: schema.Creater,db: Session = Depends(get_db)):
 
 #get all valid tasks
 @app.get("/tasks", response_model=list[schema.ResponseList])
-def get_all_tasks(db: Session=Depends(get_db)):
-    task = (db.query(models.Task).filter(models.Task.deleted.is_(False)).all())
+def get_all_tasks(db: Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task = (db.query(models.Task).filter(models.Task.deleted.is_(False)).filter(models.Task.owner_id == current_user.id).all())
     return task
 
 #get single task
 @app.get("/tasks/{task_id}", response_model=schema.Responser)
-def get_task(task_id: int,db: Session=Depends(get_db)):
-    task = (db.query(models.Task).filter(models.Task.deleted.is_(False)).filter(models.Task.id==task_id).first())
+def get_task(task_id: int,db: Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task = (db.query(models.Task).filter(models.Task.deleted.is_(False), models.Task.id == task_id, models.Task.owner_id == current_user.id).first())
     
     if not task:
         raise HTTPException(status_code=404, detail= f"task with id {task_id} not found")
@@ -60,8 +77,8 @@ def get_task(task_id: int,db: Session=Depends(get_db)):
 
 #update task
 @app.patch("/tasks/{task_id}", response_model= schema.Responser)
-def update_task(task_id : int,task_update: schema.Updater, db: Session=Depends(get_db)):
-    task = (db.query(models.Task).filter(models.Task.id==task_id).filter(models.Task.deleted.is_(False)).first())
+def update_task(task_id : int,task_update: schema.Updater, db: Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task = (db.query(models.Task).filter(models.Task.id==task_id, models.Task.deleted.is_(False), models.Task.owner_id == current_user.id).first())
     
     if not task:
         raise HTTPException(status_code = 404, detail = f"task with {task_id} not found")
@@ -81,8 +98,8 @@ def update_task(task_id : int,task_update: schema.Updater, db: Session=Depends(g
 
 #soft delete task
 @app.delete("/tasks/{task_id}")
-def tempDelete_task(task_id : int,db: Session=Depends(get_db)):
-    task=(db.query(models.Task).filter(models.Task.deleted.is_(False)).filter(models.Task.id==task_id).first())
+def tempDelete_task(task_id : int,db: Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task=(db.query(models.Task).filter(models.Task.deleted.is_(False), models.Task.owner_id == current_user.id, models.Task.id == task_id).first())
     
     if not task:
         raise HTTPException(status_code=404, detail= f"task with id {task_id} not found")
@@ -94,14 +111,14 @@ def tempDelete_task(task_id : int,db: Session=Depends(get_db)):
     
 #get soft deleted tasks
 @app.get("/recycle-bin", response_model=list[schema.ResponseList])
-def get_all_tasks(db: Session=Depends(get_db)):
-    task = (db.query(models.Task).filter(models.Task.deleted.is_(True)).all())
+def get_trash(db: Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task = (db.query(models.Task).filter(models.Task.deleted.is_(True), models.Task.owner_id == current_user.id).all())
     return task
 
 #restore soft deleted task
 @app.put("/recycle-bin/{task_id}")
-def restore_task(task_id : int,db:Session=Depends(get_db)):
-    task=(db.query(models.Task).filter(models.Task.deleted.is_(True)).filter(models.Task.id==task_id).first())
+def restore_task(task_id : int,db:Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task=(db.query(models.Task).filter(models.Task.deleted.is_(True), models.Task.id == task_id, models.Task.owner_id == current_user.id).first())
     
     if not task:
         raise HTTPException(status_code=404, detail= f"task with id {task_id} not found")
@@ -114,8 +131,8 @@ def restore_task(task_id : int,db:Session=Depends(get_db)):
 
 #hard delete
 @app.delete("/recycle-bin/{task_id}")
-def permntDelete(task_id : int,db:Session=Depends(get_db)):
-    task=(db.query(models.Task).filter(models.Task.deleted.is_(True)).filter(models.Task.id==task_id).first())
+def permntDelete(task_id : int,db:Session=Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task=(db.query(models.Task).filter(models.Task.deleted.is_(True), models.Task.owner_id == current_user.id, models.Task.id==task_id).first())
     
     if not task:
         raise HTTPException(status_code= 404, detail = f"task with id {task_id} not found")
