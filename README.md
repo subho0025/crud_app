@@ -1,68 +1,92 @@
-# *Task Management Dashboard (CRUD Application)*.
-This is a full stack Management application based on CRUD. It features a modern "Dashboard" interface, a *Recycle Bin* for safely restoring deleted items, and a "Soft Delete" system.
+# Full Stack CRUD App
+
+A robust, secure, and interactive Task Management system featuring a Drag and Drop Kanban interface. This application allows users to register, log in, and manage their tasks with strict data isolation. It includes a comprehensive "Soft Delete" mechanism with a Recycle Bin for data recovery and permanent deletion.
 
 ## Key Features
-- *Create & Edit:* Add new tasks or update existing ones (change status to Pending, In Progress, or Completed).
-- *Soft Delete:* Clicking "Delete" moves items to the Recycle Bin instead of erasing them immediately.
-- *Recycle Bin:* View deleted items and choose to *Restore* them or *Permanently Delete* them.
-- *Persistent Database:* Uses SQLite for zero-configuration data storage.
-- *Modern UI:* Built with React & Vite, featuring a clean, centered dashboard layout.
+
+### Authentication & Security
+* **User Registration & Login:** Secure access control using JWT (JSON Web Tokens).
+* **Data Isolation:** Enforces strict privacy where users can only view and manage their own tasks.
+* **Password Security:** Utilizes Bcrypt hashing for secure password storage.
+
+### Kanban Dashboard
+* **Interactive Board:** Visual column-based layout categorizing tasks into Pending, In Progress, and Completed statuses.
+* **Drag & Drop:** Utilizes `@hello-pangea/dnd` for efficient status updates via a drag-and-drop interface.
+* **Responsive Cards:** Includes hover effects and quick access to View, Edit, and Delete actions.
+
+### Data Management
+* **CRUD Operations:** Complete Create, Read, Update, and Delete capabilities.
+* **Soft Delete:** Implements a safety mechanism where deleted items are moved to a Recycle Bin rather than being immediately erased.
+* **Recycle Bin:** Provides functionality to restore accidentally deleted items or permanently remove them from the database.
+
+---
 
 ## Tech Stack
-- *Backend* - Python 3.12, FastApi, Pydantic, SQLAlchemy.
-- *Frontend* - React.js, Vite, Axios, CSS Module.
-- *Database* - SQLite (Auto-generated file sql_app.db - no server installation required).
 
-## How to execute the project
-Since this is a full-stack application, you need to run this on two terminals one for running the frontend while the other for running the backend of the full-stack simultaneously.
+### Backend
+* **Language:** Python 3.12+
+* **Framework:** FastAPI
+* **Database:** SQLite (SQLAlchemy ORM)
+* **Authentication:** OAuth2 with Password Bearer, JWT (python-jose), Passlib (bcrypt)
 
-### Step 1: Start the Backend(Python)
+### Frontend
+* **Framework:** React.js (Vite)
+* **HTTP Client:** Axios (configured with Interceptors for token management)
+* **Drag & Drop:** @hello-pangea/dnd
+* **Styling:** CSS Modules / Standard CSS
 
-  1. Open terminal and navigate to the basic_crud_app folder
-  
-  2. create and activate the virtual environment (Recommended):  
-  **Linux/MacOS**
-   ```bash
+---
+
+## Execution Instructions
+
+To run this full-stack application, the Backend and Frontend services must be executed simultaneously in separate terminal instances.
+
+### Step 1: Initialize the Backend (Python)
+
+1.  Open a terminal and navigate to the project root directory.
+2.  Create and activate a virtual environment:
+
+    **Linux/MacOS:**
+    ```bash
     python3 -m venv venv
     source venv/bin/activate
-  ```
-  **Windows**
-  ```bash
+    ```
+
+    **Windows:**
+    ```bash
     python -m venv venv
     venv\Scripts\activate
-   ```
- 
- 3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+    ```
 
- 4. Start the server:
-   ```bash
-   uvicorn backend.main:app --reload
-   ```
-  You should see: Uvicorn running on http://127.0.0.1:8000
+3.  Install the required dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
- <!--list break-->
-   ---
-   
-   ### Step 2: Start the Frontend (React)
+4.  Start the FastAPI server:
+    ```bash
+    uvicorn backend.main:app --reload
+    ```
+    *The server will initialize at: `http://127.0.0.1:8000`*
 
-1.  Open a *new* terminal window and navigate to the frontend folder:
+### Step 2: Initialize the Frontend (React)
+
+1.  Open a new terminal instance.
+2.  Navigate to the frontend directory:
     ```bash
     cd frontend
     ```
 
-2.  Install the node modules:
+3.  Install Node.js dependencies:
     ```bash
     npm install
     ```
 
-3.  Run the development server:
+4.  Run the development server:
     ```bash
     npm run dev
     ```
 
-4.  Open your browser and visit the link shown (usually *http://localhost:5173*).
+5.  Access the application via the browser at the provided URL (usually **http://localhost:5173**).
 
 ---
